@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+    <group name="General">
+        <entry name="username" type="String">
+            <label>Username / Email passed to the connect command</label>
+            <default></default>
+        </entry>
+        <entry name="account" type="String">
+            <label>Account name passed to the connect command</label>
+            <default></default>
+        </entry>
+        <entry name="pollInterval" type="Int">
+            <label>Seconds between cheap tunnel-device checks</label>
+            <default>10</default>
+        </entry>
+        <entry name="fullPollInterval" type="Int">
+            <label>Seconds between full status-command runs when nothing changed</label>
+            <default>300</default>
+        </entry>
+        <entry name="tunnelDevice" type="String">
+            <label>Network device created by the VPN tunnel (empty: always run the status command)</label>
+            <default>tun0</default>
+        </entry>
+        <entry name="statusCommand" type="String">
+            <label>Status command</label>
+            <default>cato-sdp status</default>
+        </entry>
+        <entry name="connectCommand" type="String">
+            <label>Connect command template ({username} and {account} are substituted)</label>
+            <default>cato-sdp start --user {username} --account {account}</default>
+        </entry>
+        <entry name="openSignInPage" type="Bool">
+            <label>Open the browser sign-in page automatically when a connection started from the tray needs it</label>
+            <default>true</default>
+        </entry>
+        <entry name="disconnectCommand" type="String">
+            <label>Disconnect command</label>
+            <default>cato-sdp stop</default>
+        </entry>
+    </group>
+</kcfg>

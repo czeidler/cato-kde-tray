@@ -13,9 +13,9 @@ and lets you connect and disconnect manually.
 - While disconnected the popup shows the connect form: user name and
   account (pre-filled from the last login and remembered), an optional
   credential reset, and a **Connect** button
-- A collapsible **Client output** console in the popup shows the commands
-  run and everything the client printed; it opens by itself when the client
-  refuses or fails and folds away once the VPN is up
+- **Client Output…** opens a separate, resizable window with the commands
+  run and everything the client printed; it opens by itself when a connect
+  attempt fails and closes again once the VPN is up
 - **Disconnect** button while connected
 - Browser sign-in: the client opens the SSO page itself when it can; if it
   only reports the link, the applet opens it for you (configurable). The
@@ -93,9 +93,9 @@ pkexec cato-sdp stop
 ## Connecting and sign-in
 
 Pressing **Connect** in the popup runs the connect command and logs the
-command and everything the client prints to the popup's console (expand it
-with _Client output_; while the popup is open the status checks are logged
-there too). Cato then needs a browser sign-in:
+command and everything the client prints to the client output window (open
+it with _Client Output…_; while the popup or the window is open the status
+checks are logged there too). Cato then needs a browser sign-in:
 
 1. If the client prints "Authentication is now in progress on your browser",
    it launched the browser itself and the applet does nothing more.
@@ -107,9 +107,9 @@ there too). Cato then needs a browser sign-in:
    the applet retries once with `--reset-cred` appended.
 
 Any other refusal printed by the client (it exits with status 0 even then)
-is shown in the popup and the console expands so you can read the output.
-The _Reset stored credentials_ option adds `--reset-cred` to the command up
-front.
+is shown in the popup and the client output window opens so you can read
+the output. The _Reset stored credentials_ option adds `--reset-cred` to the
+command up front.
 
 ## Development
 
@@ -118,6 +118,14 @@ Install with `./install.sh`, then load the applet in a window with
 Do not set `preferredRepresentation` on the root item: the Plasma 6 system
 tray never expands an applet that has one, so left-click would stop opening
 the popup.
+
+## Popup height
+
+Inside the **system tray** the tray owns the popup and gives every entry the
+same fixed size (24 grid units square by default, or whatever it was last
+dragged to); the applet cannot change that, which is why the client output
+has its own resizable window instead of living in the popup. When the widget
+is placed directly in a panel, its own popup follows the content height.
 
 ## Status detection
 
@@ -153,6 +161,7 @@ cato-kde-tray/
     └── ui/
         ├── main.qml                   # PlasmoidItem: state, polling, commands
         ├── CompactRepresentation.qml  # Tray icon
-        ├── FullRepresentation.qml     # Popup: status, connect form, console
+        ├── FullRepresentation.qml     # Popup: status, connect form, buttons
+        ├── OutputWindow.qml           # Resizable window with the client output
         └── ConfigGeneral.qml          # Settings page
 ```

@@ -29,7 +29,7 @@ PlasmoidItem {
     property string statusError: ""       // problem running the status command
     property string actionError: ""       // problem running the last connect/disconnect command
     property string lastUpdated: ""
-    property string transcript: ""        // console log shown in the popup
+    property string transcript: ""        // console log shown in the output window
 
     // ── Bookkeeping ──────────────────────────────────────────────────────────
     property bool   isChecking: false     // status command in flight
@@ -132,6 +132,27 @@ PlasmoidItem {
     compactRepresentation: CompactRepresentation { plasmoidItem: root }
     fullRepresentation: FullRepresentation { plasmoidItem: root }
 
+    // Separate, resizable window with the client output
+    OutputWindow {
+        id: outputWindow
+        plasmoidItem: root
+    }
+
+    function showOutputWindow() {
+        outputWindow.open(false)
+    }
+
+    function clearTranscript() {
+        root.transcript = ""
+    }
+
+    // A failed connect opens the output window so the reason can be read …
+    onActionErrorChanged: {
+        if (root.actionError !== "") {
+            outputWindow.open(true)
+        }
+    }
+
     onExpandedChanged: {
         if (root.expanded) {
             root.refreshStatus()
@@ -141,6 +162,9 @@ PlasmoidItem {
     onVpnStatusChanged: {
         if (root.vpnStatus === "authenticating") {
             root.authenticatingSince = Date.now()
+        }
+        if (root.vpnStatus === "connected") {
+            outputWindow.closeIfOpenedAutomatically()   // … and goes away once connected
         }
     }
 
@@ -293,7 +317,7 @@ PlasmoidItem {
             handleTunnelCheck(exitCode === 0)
         } else if (source === root.statusSource) {
             root.statusSource = ""
-            if (root.expanded) {
+            if (root.expanded || outputWindow.visible) {
                 appendTranscript(source, stdout, stderr, exitCode)
             }
             handleStatusOutput(stdout, stderr, exitCode)
@@ -471,7 +495,6 @@ PlasmoidItem {
             root.pendingAction = ""
             pendingActionTimer.stop()
             root.vpnStatus = "unknown"   // the next status check decides
-            root.expanded = true         // the popup shows the message and console
         } else if (root.pendingAction === "connect") {
             // "…in progress on your browser, please check…" means the client
             // ran xdg-open itself; "…please open in your browser link: …" means
@@ -489,7 +512,7 @@ PlasmoidItem {
         refreshTimer.restart()
     }
 
-    // ── Console transcript for the popup ─────────────────────────────────────
+    // ── Console transcript for the output window ─────────────────────────────
     function appendTranscript(command, stdout, stderr, exitCode) {
         let chunk = "[" + Qt.formatTime(new Date(), "hh:mm:ss") + "] $ " + command + "\n"
         const out = stripAnsi(stdout).trim()

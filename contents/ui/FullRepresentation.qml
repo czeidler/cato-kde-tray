@@ -2,8 +2,8 @@
     Cato VPN Tray – popup shown when the tray icon is clicked.
 
     Shows the connection state and details, the connect form (user name,
-    account, optional credential reset) with a collapsible console of the
-    client's output, and the Disconnect button while connected.
+    account, optional credential reset) and the Disconnect button while
+    connected.  The client output lives in its own window (OutputWindow.qml).
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -28,15 +28,12 @@ PlasmaExtras.Representation {
                                      || vpn.vpnStatus === "error"
     readonly property bool showDisconnect: !showConnect
 
-    // Console with the client's output; opens by itself on failure
-    property bool outputExpanded: false
-
+    // Sizing of the applet's own popup (applet placed directly in a panel);
+    // inside the system tray the tray's popup has a fixed size instead.
     Layout.minimumWidth: Kirigami.Units.gridUnit * 22
-    Layout.minimumHeight: Kirigami.Units.gridUnit * 14
+    Layout.minimumHeight: Kirigami.Units.gridUnit * 10
     Layout.preferredWidth: Kirigami.Units.gridUnit * 26
-    // Keep the popup on screen: the console scrolls instead of growing the popup
-    Layout.preferredHeight: Math.min(implicitHeight + (outputExpanded ? Kirigami.Units.gridUnit * 10 : 0),
-                                     Kirigami.Units.gridUnit * 30)
+    Layout.preferredHeight: Math.min(implicitHeight, Kirigami.Units.gridUnit * 32)
 
     function detail(key) {
         return fullRoot.vpn.detail(key)
@@ -58,16 +55,9 @@ PlasmaExtras.Representation {
     Connections {
         target: fullRoot.vpn
 
-        function onActionErrorChanged() {
-            if (fullRoot.vpn.actionError !== "") {
-                fullRoot.outputExpanded = true      // failure: show what the client said
-            }
-        }
-
         function onVpnStatusChanged() {
             if (fullRoot.vpn.vpnStatus === "connected") {
-                fullRoot.outputExpanded = false     // success: tidy up
-                resetCredCheck.checked = false
+                resetCredCheck.checked = false      // one-off option
             }
         }
     }
@@ -290,11 +280,13 @@ PlasmaExtras.Representation {
             spacing: Kirigami.Units.smallSpacing
 
             PlasmaComponents3.ToolButton {
-                text: i18n("Client output")
-                icon.name: fullRoot.outputExpanded ? "arrow-up" : "arrow-down"
-                checkable: true
-                checked: fullRoot.outputExpanded
-                onToggled: fullRoot.outputExpanded = checked
+                text: i18n("Client Output…")
+                icon.name: "utilities-terminal"
+                onClicked: fullRoot.vpn.showOutputWindow()
+
+                QQC2.ToolTip.text: i18n("Open a window with the commands run and the client's output")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             Item {
@@ -321,47 +313,8 @@ PlasmaExtras.Representation {
             }
         }
 
-        // ── Client output (terminal-like, scrolls inside the popup) ──────────
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.minimumHeight: Kirigami.Units.gridUnit * 5
-            visible: fullRoot.outputExpanded
-            color: "#1b1e20"
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.15)
-            radius: Kirigami.Units.cornerRadius
-
-            Flickable {
-                id: outputFlickable
-                anchors.fill: parent
-                anchors.margins: Kirigami.Units.smallSpacing
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-
-                QQC2.ScrollBar.vertical: PlasmaComponents3.ScrollBar {}
-
-                function scrollToEnd() {
-                    contentY = Math.max(0, contentHeight - height)
-                }
-
-                QQC2.TextArea.flickable: PlasmaComponents3.TextArea {
-                    text: fullRoot.vpn.transcript !== "" ? fullRoot.vpn.transcript : i18n("(no client output yet)")
-                    readOnly: true
-                    selectByMouse: true
-                    wrapMode: TextEdit.WrapAnywhere
-                    font.family: "monospace"
-                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                    color: "#d8dee9"
-                    background: null
-                    onTextChanged: Qt.callLater(outputFlickable.scrollToEnd)
-                }
-            }
-        }
-
         Item {
             Layout.fillHeight: true
-            visible: !fullRoot.outputExpanded
         }
 
         PlasmaComponents3.Label {

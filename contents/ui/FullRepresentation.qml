@@ -28,13 +28,6 @@ PlasmaExtras.Representation {
                                      || vpn.vpnStatus === "error"
     readonly property bool showDisconnect: !showConnect
 
-    // Sizing of the applet's own popup (applet placed directly in a panel);
-    // inside the system tray the tray's popup has a fixed size instead.
-    Layout.minimumWidth: Kirigami.Units.gridUnit * 22
-    Layout.minimumHeight: Kirigami.Units.gridUnit * 10
-    Layout.preferredWidth: Kirigami.Units.gridUnit * 26
-    Layout.preferredHeight: Math.min(implicitHeight, Kirigami.Units.gridUnit * 32)
-
     function detail(key) {
         return fullRoot.vpn.detail(key)
     }
@@ -118,7 +111,7 @@ PlasmaExtras.Representation {
 
             PlasmaComponents3.ToolButton {
                 icon.name: "view-refresh"
-                text: i18n("Refresh now")
+                text: i18n("Refresh now\nLast checked: %1", fullRoot.vpn.lastUpdated)
                 display: QQC2.AbstractButton.IconOnly
                 enabled: !fullRoot.vpn.isChecking
                 onClicked: fullRoot.vpn.refreshStatus()
@@ -225,12 +218,6 @@ PlasmaExtras.Representation {
             wrapMode: Text.Wrap
         }
 
-        Kirigami.Separator {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            Layout.bottomMargin: Kirigami.Units.smallSpacing
-        }
-
         // ── Connect form (shown while not connected) ─────────────────────────
         Kirigami.FormLayout {
             Layout.fillWidth: true
@@ -263,24 +250,13 @@ PlasmaExtras.Representation {
             }
         }
 
-        PlasmaComponents3.Label {
-            Layout.fillWidth: true
-            visible: fullRoot.showDisconnect && text !== ""
-            text: fullRoot.vpn.vpnStatus === "connected" && fullRoot.detail("user") !== ""
-                ? i18n("Signed in as %1", fullRoot.detail("user"))
-                : ""
-            font: Kirigami.Theme.smallFont
-            opacity: 0.7
-            elide: Text.ElideRight
-        }
-
         // ── Buttons ──────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
 
             PlasmaComponents3.ToolButton {
-                text: i18n("Client Output…")
+                text: i18n("Logs")
                 icon.name: "utilities-terminal"
                 onClicked: fullRoot.vpn.showOutputWindow()
 
@@ -313,16 +289,14 @@ PlasmaExtras.Representation {
             }
         }
 
-        Item {
-            Layout.fillHeight: true
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.smallSpacing
+            Layout.bottomMargin: Kirigami.Units.smallSpacing
         }
 
-        PlasmaComponents3.Label {
-            Layout.fillWidth: true
-            visible: fullRoot.vpn.lastUpdated !== ""
-            text: i18n("Last checked: %1", fullRoot.vpn.lastUpdated)
-            font: Kirigami.Theme.smallFont
-            opacity: 0.6
+        Item {
+            Layout.fillHeight: true
         }
     }
 }

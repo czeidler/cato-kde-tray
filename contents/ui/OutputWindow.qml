@@ -1,10 +1,11 @@
 /*
     Cato VPN Tray – client output window.
 
-    A normal, resizable window showing the commands the applet ran and
-    everything the client printed.  Opened from the popup, or by the applet
-    itself when a connect attempt fails; in that case it closes again by
-    itself once the VPN is connected.
+    A normal, resizable window with the last few commands the applet ran.
+    The list on the left has the newest command first; the output of the
+    selected one is shown on the right.  Opened from the popup, or by the
+    applet itself when a connect attempt fails; in that case it closes again
+    by itself once the VPN is connected.
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -27,16 +28,32 @@ Window {
     // window closes by itself once the VPN is connected.
     property bool openedAutomatically: false
 
+    // What the console shows: the selected command and everything it printed
+    readonly property string shownText: commandList.currentItem
+        ? "[" + formatTime(commandList.currentItem.timestamp) + "] $ "
+              + commandList.currentItem.command + "\n" + commandList.currentItem.output
+        : ""
+
     title: i18n("Cato VPN – Client Output")
     flags: Qt.Window
     transientParent: null      // a top-level window, not a child of the panel
     visible: false
     color: content.Kirigami.Theme.backgroundColor
 
-    minimumWidth: Kirigami.Units.gridUnit * 24
+    minimumWidth: Kirigami.Units.gridUnit * 28
     minimumHeight: Kirigami.Units.gridUnit * 10
-    width: Kirigami.Units.gridUnit * 40
+    width: Kirigami.Units.gridUnit * 48
     height: Kirigami.Units.gridUnit * 24
+
+    function formatTime(timestamp) {
+        return Qt.formatTime(new Date(timestamp), "hh:mm:ss")
+    }
+
+    function selectLatest() {
+        if (commandList.count > 0) {
+            commandList.currentIndex = 0
+        }
+    }
 
     function open(automatically) {
         if (!logWindow.visible) {
@@ -47,7 +64,8 @@ Window {
         }
         logWindow.raise()
         logWindow.requestActivate()
-        Qt.callLater(outputFlickable.scrollToEnd)
+        logWindow.selectLatest()
+        Qt.callLater(outputFlickable.scrollToTop)
     }
 
     function closeIfOpenedAutomatically() {
@@ -111,69 +129,142 @@ Window {
                     visible: logWindow.vpn.statusDetail === ""
                 }
 
-                QQC2.CheckBox {
-                    id: followCheck
-                    text: i18n("Follow output")
-                    checked: true
-                }
-
                 QQC2.ToolButton {
-                    text: i18n("Copy All")
+                    text: i18n("Copy")
                     icon.name: "edit-copy"
-                    enabled: logWindow.vpn.transcript !== ""
+                    enabled: logWindow.shownText !== ""
                     onClicked: {
                         outputArea.selectAll()
                         outputArea.copy()
                         outputArea.deselect()
                     }
+
+                    QQC2.ToolTip.text: i18n("Copy the shown command and its output")
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 }
 
                 QQC2.ToolButton {
                     text: i18n("Clear")
                     icon.name: "edit-clear-history"
-                    enabled: logWindow.vpn.transcript !== ""
-                    onClicked: logWindow.vpn.clearTranscript()
+                    enabled: commandList.count > 0
+                    onClicked: logWindow.vpn.clearCommandLog()
                 }
             }
 
-            // ── Console ──────────────────────────────────────────────────────
-            Rectangle {
+            // ── Command list (left) and console (right) ──────────────────────
+            QQC2.SplitView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: "#1b1e20"
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.15)
-                radius: Kirigami.Units.cornerRadius
+                orientation: Qt.Horizontal
 
-                Flickable {
-                    id: outputFlickable
-                    anchors.fill: parent
-                    anchors.margins: Kirigami.Units.smallSpacing
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
+                Rectangle {
+                    QQC2.SplitView.preferredWidth: Kirigami.Units.gridUnit * 13
+                    QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 7
 
-                    QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                    Kirigami.Theme.colorSet: Kirigami.Theme.View
+                    Kirigami.Theme.inherit: false
+                    color: Kirigami.Theme.backgroundColor
+                    border.width: 1
+                    border.color: Kirigami.ColorUtils.linearInterpolation(
+                        Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, Kirigami.Theme.frameContrast)
+                    radius: Kirigami.Units.cornerRadius
 
-                    function scrollToEnd() {
-                        contentY = Math.max(0, contentHeight - height)
-                    }
+                    ListView {
+                        id: commandList
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        clip: true
+                        focus: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: logWindow.vpn.commandLog
 
-                    QQC2.TextArea.flickable: QQC2.TextArea {
-                        id: outputArea
-                        text: logWindow.vpn.transcript !== ""
-                            ? logWindow.vpn.transcript
-                            : i18n("(no client output yet – it appears here when you connect, disconnect or refresh)")
-                        readOnly: true
-                        selectByMouse: true
-                        wrapMode: TextEdit.WrapAnywhere
-                        font.family: "monospace"
-                        font.pointSize: Kirigami.Theme.smallFont.pointSize
-                        color: "#d8dee9"
-                        background: null
-                        onTextChanged: {
-                            if (followCheck.checked) {
-                                Qt.callLater(outputFlickable.scrollToEnd)
+                        QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+
+                        // Start every command's output at the top
+                        onCurrentItemChanged: Qt.callLater(outputFlickable.scrollToTop)
+
+                        delegate: QQC2.ItemDelegate {
+                            id: entry
+
+                            required property int index
+                            required property double timestamp
+                            required property string command
+                            required property string output
+                            required property int exitCode
+
+                            readonly property color textColor: highlighted
+                                ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+
+                            width: commandList.width
+                            highlighted: entry.ListView.isCurrentItem
+                            onClicked: commandList.currentIndex = entry.index
+
+                            contentItem: ColumnLayout {
+                                spacing: 0
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: logWindow.formatTime(entry.timestamp)
+                                    font: Kirigami.Theme.smallFont
+                                    color: entry.textColor
+                                    opacity: 0.7
+                                }
+
+                                QQC2.Label {
+                                    Layout.fillWidth: true
+                                    text: entry.command
+                                    color: entry.textColor
+                                    elide: Text.ElideRight
+                                }
                             }
+                        }
+
+                        QQC2.Label {
+                            anchors.centerIn: parent
+                            width: parent.width - Kirigami.Units.largeSpacing * 2
+                            visible: commandList.count === 0
+                            text: i18n("No commands yet")
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.Wrap
+                            opacity: 0.6
+                        }
+                    }
+                }
+
+                Rectangle {
+                    QQC2.SplitView.fillWidth: true
+                    QQC2.SplitView.minimumWidth: Kirigami.Units.gridUnit * 10
+                    color: "#1b1e20"
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.15)
+                    radius: Kirigami.Units.cornerRadius
+
+                    Flickable {
+                        id: outputFlickable
+                        anchors.fill: parent
+                        anchors.margins: Kirigami.Units.smallSpacing
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+
+                        function scrollToTop() {
+                            contentY = 0
+                        }
+
+                        QQC2.TextArea.flickable: QQC2.TextArea {
+                            id: outputArea
+                            text: logWindow.shownText !== ""
+                                ? logWindow.shownText
+                                : i18n("(no client output yet – it appears here when you connect, disconnect or refresh)")
+                            readOnly: true
+                            selectByMouse: true
+                            wrapMode: TextEdit.WrapAnywhere
+                            font.family: "monospace"
+                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            color: "#d8dee9"
+                            background: null
                         }
                     }
                 }
@@ -186,7 +277,7 @@ Window {
 
                 QQC2.Label {
                     Layout.fillWidth: true
-                    text: i18n("Commands run by the applet and everything the client printed. While this window is open the status checks are logged too.")
+                    text: i18n("The last %1 commands the applet ran, newest first, with everything the client printed. While this window is open the status checks are logged too.", logWindow.vpn.maxLogEntries)
                     font: Kirigami.Theme.smallFont
                     opacity: 0.7
                     wrapMode: Text.Wrap

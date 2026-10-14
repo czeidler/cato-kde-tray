@@ -29,7 +29,12 @@ PlasmoidItem {
     property string statusError: ""       // problem running the status command
     property string actionError: ""       // problem running the last connect/disconnect command
     property string lastUpdated: ""
-    property string transcript: ""        // console log shown in the output window
+
+    // ── Command log (shown in the output window) ─────────────────────────────
+    readonly property int maxLogEntries: 10   // commands kept, newest first
+    property alias commandLog: commandLogModel
+    property int logSerial: 0                 // number given to the last logged command
+    property int lastActionEntry: 0           // serial of the last logged connect/disconnect
 
     // ── Bookkeeping ──────────────────────────────────────────────────────────
     property bool   isChecking: false     // status command in flight
@@ -132,6 +137,16 @@ PlasmoidItem {
     compactRepresentation: CompactRepresentation { plasmoidItem: root }
     fullRepresentation: FullRepresentation { plasmoidItem: root }
 
+    // The last few commands the applet ran, newest first.  Each entry has
+    //   serial    – running number, so a remark can still find its command
+    //   timestamp – Date.now() when the command finished
+    //   command   – the exact command line
+    //   output    – what the client printed (ANSI codes stripped), plus remarks
+    //   exitCode
+    ListModel {
+        id: commandLogModel
+    }
+
     // Separate, resizable window with the client output
     OutputWindow {
         id: outputWindow
@@ -142,8 +157,9 @@ PlasmoidItem {
         outputWindow.open(false)
     }
 
-    function clearTranscript() {
-        root.transcript = ""
+    function clearCommandLog() {
+        commandLogModel.clear()
+        root.lastActionEntry = 0
     }
 
     // A failed connect opens the output window so the reason can be read …
@@ -253,7 +269,7 @@ PlasmoidItem {
             if (root.pendingAction === "connect"
                     && root.vpnStatus !== "connected" && root.vpnStatus !== "authenticating") {
                 root.actionError = i18n("The client did not report a connection within 45 seconds.")
-                noteTranscript(root.actionError)
+                logNote(root.actionError)
             }
             root.pendingAction = ""
         }
@@ -318,11 +334,11 @@ PlasmoidItem {
         } else if (source === root.statusSource) {
             root.statusSource = ""
             if (root.expanded || outputWindow.visible) {
-                appendTranscript(source, stdout, stderr, exitCode)
+                logCommand(source, stdout, stderr, exitCode)
             }
             handleStatusOutput(stdout, stderr, exitCode)
         } else if (source === root.pendingCommand) {
-            appendTranscript(source, stdout, stderr, exitCode)
+            root.lastActionEntry = logCommand(source, stdout, stderr, exitCode)
             handleActionFinished(stdout, stderr, exitCode)
         }
         // Anything else belongs to a command we stopped tracking; ignore it.
@@ -484,7 +500,7 @@ PlasmoidItem {
         if (failureLine.toLowerCase().indexOf(root.resetCredentialsArgument) !== -1
                 && root.lastConnectCommand !== "" && !root.retriedWithReset) {
             root.retriedWithReset = true
-            noteTranscript(i18n("Stored credentials differ from the ones given; retrying with %1", root.resetCredentialsArgument))
+            logNote(i18n("Stored credentials differ from the ones given; retrying with %1", root.resetCredentialsArgument))
             runAction(root.lastConnectCommand + " " + root.resetCredentialsArgument, "connect", "connecting")
             return
         }
@@ -512,31 +528,46 @@ PlasmoidItem {
         refreshTimer.restart()
     }
 
-    // ── Console transcript for the output window ─────────────────────────────
-    function appendTranscript(command, stdout, stderr, exitCode) {
-        let chunk = "[" + Qt.formatTime(new Date(), "hh:mm:ss") + "] $ " + command + "\n"
+    // ── Command log for the output window ────────────────────────────────────
+    // Record a finished command; returns its serial number.
+    function logCommand(command, stdout, stderr, exitCode) {
         const out = stripAnsi(stdout).trim()
         const err = stripAnsi(stderr).trim()
+        let output = ""
         if (out !== "") {
-            chunk += out + "\n"
+            output += out + "\n"
         }
         if (err !== "") {
-            chunk += err + "\n"
+            output += err + "\n"
         }
         if (exitCode !== 0) {
-            chunk += "[exit code " + exitCode + "]\n"
+            output += "[exit code " + exitCode + "]\n"
         }
-        pushTranscript(chunk)
+        root.logSerial += 1
+        commandLogModel.insert(0, {
+            serial: root.logSerial,
+            timestamp: Date.now(),
+            command: command,
+            output: output,
+            exitCode: exitCode
+        })
+        while (commandLogModel.count > root.maxLogEntries) {
+            commandLogModel.remove(commandLogModel.count - 1)
+        }
+        return root.logSerial
     }
 
-    function noteTranscript(message) {
-        pushTranscript("[" + Qt.formatTime(new Date(), "hh:mm:ss") + "] # " + message + "\n")
-    }
-
-    function pushTranscript(chunk) {
-        const lines = (root.transcript + chunk + "\n").split("\n")
-        const maxLines = 400
-        root.transcript = lines.slice(Math.max(0, lines.length - maxLines)).join("\n")
+    // Add a remark of the applet's own to the output of the last logged
+    // connect/disconnect command, which is what such remarks are about.
+    // Nothing is kept if that command has already dropped out of the log.
+    function logNote(message) {
+        for (let i = 0; i < commandLogModel.count; ++i) {
+            const entry = commandLogModel.get(i)
+            if (entry.serial === root.lastActionEntry) {
+                commandLogModel.setProperty(i, "output", entry.output + "# " + message + "\n")
+                return
+            }
+        }
     }
 
     // ── Parsing helpers ──────────────────────────────────────────────────────

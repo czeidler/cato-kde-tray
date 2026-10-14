@@ -13,9 +13,10 @@ and lets you connect and disconnect manually.
 - While disconnected the popup shows the connect form: user name and
   account (pre-filled from the last login and remembered), an optional
   credential reset, and a **Connect** button
-- **Client Output…** opens a separate, resizable window with the commands
-  run and everything the client printed; it opens by itself when a connect
-  attempt fails and closes again once the VPN is up
+- **Logs** opens a separate, resizable window with the last ten commands
+  the applet ran (newest first) and everything the client printed for the
+  selected one; it opens by itself when a connect attempt fails and closes
+  again once the VPN is up
 - **Disconnect** button while connected
 - Browser sign-in: the client opens the SSO page itself when it can; if it
   only reports the link, the applet opens it for you (configurable). The
@@ -94,8 +95,12 @@ pkexec cato-sdp stop
 
 Pressing **Connect** in the popup runs the connect command and logs the
 command and everything the client prints to the client output window (open
-it with _Client Output…_; while the popup or the window is open the status
-checks are logged there too). Cato then needs a browser sign-in:
+it with _Logs_; while the popup or the window is open the status checks are
+logged there too). The window keeps the last ten commands in a list on the
+left, newest first, and shows the output of the selected one on the right;
+the newest command is selected whenever the window opens and, while _Follow
+latest_ is ticked, whenever a command finishes. Cato then needs a browser
+sign-in:
 
 1. If the client prints "Authentication is now in progress on your browser",
    it launched the browser itself and the applet does nothing more.

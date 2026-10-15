@@ -84,7 +84,7 @@ PlasmoidItem {
 
     readonly property color statusColor: {
         switch (vpnStatus) {
-        case "connected":      return Kirigami.Theme.positiveTextColor
+        case "connected":      return Kirigami.Theme.highlightedTextColor
         case "authenticating":
         case "connecting":
         case "disconnecting":  return Kirigami.Theme.neutralTextColor

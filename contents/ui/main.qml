@@ -41,6 +41,7 @@ PlasmoidItem {
     property bool   actionPending: false  // connect/disconnect command in flight
     property string pendingAction: ""     // "" | "connect" | "disconnect": waiting for the daemon to settle
     property string pendingCommand: ""    // exact command string of the running action
+    property bool   actionQueued: false   // action waits for the running status check to finish
     property string statusSource: ""      // exact command string of the running status check
     property string tunnelSource: ""      // exact command string of the running tunnel check
     property int    tunnelState: -1       // -1 unknown, 0 device absent, 1 device present
@@ -285,6 +286,7 @@ PlasmoidItem {
             }
             root.statusSource = ""
             root.isChecking = false
+            root.startQueuedAction()
         }
     }
 
@@ -317,8 +319,12 @@ PlasmoidItem {
         cmdSource.connectSource(root.tunnelSource)
     }
 
+    // The daemon answers all cato-sdp clients over one shared channel: when two
+    // of them run at the same time, one can receive the other's reply and gives
+    // up with "Failed to deserialize cmd".  So never run a status check next to
+    // a connect/disconnect command (see also runAction).
     function refreshStatus() {
-        if (root.isChecking || root.statusCommand === "") {
+        if (root.isChecking || root.actionPending || root.statusCommand === "") {
             return
         }
         root.isChecking = true
@@ -390,6 +396,7 @@ PlasmoidItem {
         }
 
         applyStatus(parsed)
+        startQueuedAction()
     }
 
     // Persist the user name / account so the connect form is pre-filled next time.
@@ -477,9 +484,26 @@ PlasmoidItem {
         }
         root.pendingCommand = cmd
         root.vpnStatus = transientStatus
+        if (root.isChecking) {
+            // Let the running status check finish first; its reply would
+            // otherwise end up with this command (see refreshStatus).
+            root.actionQueued = true
+        } else {
+            startAction()
+        }
+    }
+
+    function startAction() {
+        root.actionQueued = false
         pendingActionTimer.restart()
         actionWatchdog.restart()
-        cmdSource.connectSource(cmd)
+        cmdSource.connectSource(root.pendingCommand)
+    }
+
+    function startQueuedAction() {
+        if (root.actionQueued && root.pendingCommand !== "") {
+            startAction()
+        }
     }
 
     function handleActionFinished(stdout, stderr, exitCode) {
